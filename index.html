@@ -105,14 +105,6 @@
   <nav class="stick" id="stickybar">
     <div class="navrow">
       <div id="tabrow"></div>
-      <button class="searchbtn" id="searchbtn"></button>
-    </div>
-    <div class="searchwrap" id="searchwrap" style="display:none;">
-      <div class="searchbox">
-        <span id="searchlabel"></span>
-        <input id="searchinput" />
-        <button class="clearbtn" id="clearbtn" style="display:none;"></button>
-      </div>
     </div>
   </nav>
 
@@ -229,10 +221,6 @@
   // ---- static texts (header/footer/search/fab) ----
   function applyStatic(){
     document.getElementById('motto').innerHTML=esc(t(MOTTO)).replace(/\n/g,'<br>');
-    document.getElementById('searchbtn').textContent=ui('search');
-    document.getElementById('searchlabel').textContent=ui('search');
-    document.getElementById('searchinput').placeholder=ui('ph');
-    document.getElementById('clearbtn').textContent=ui('clear');
     document.getElementById('fablabel').textContent=ui('allergens');
     var coperto=(D.restaurant&&D.restaurant.coperto!=null)?D.restaurant.coperto:2;
     document.getElementById('f-coperto').textContent=ui('coperto').replace('%s',String(coperto).replace('.',','));
@@ -266,18 +254,9 @@
   // ---- render sections ----
   var main=document.getElementById('main');
   function render(){
-    var q=state.query.trim().toLowerCase();
-    main.innerHTML=''; var gi=0, shown=0;
+    main.innerHTML=''; var gi=0;
     (D.sections||[]).forEach(function(sec){
       var items=sec.items||[];
-      if(q){
-        items=items.filter(function(it){
-          var hay=it.name+' '+t(it.desc)+' '+(it.keys||[]).map(function(k){return allName(k);}).join(' ');
-          return hay.toLowerCase().indexOf(q)!==-1;
-        });
-        if(items.length===0) return;
-      }
-      shown++;
       var sc=document.createElement('section');
       sc.className='sec'; sc.id='sec-'+sec.id; sc.setAttribute('data-sec',sec.id);
       var subt=catSub(sec);
@@ -297,9 +276,6 @@
       cards+='</div>';
       sc.innerHTML=head+cards; main.appendChild(sc);
     });
-    if(q&&shown===0){
-      main.innerHTML='<div class="nores"><div class="big">'+esc(ui('noRes'))+'</div><div>'+esc(ui('noResSub'))+'</div></div>';
-    }
     Array.prototype.forEach.call(main.querySelectorAll('[data-dish]'),function(btn){
       btn.onclick=function(){
         var p=btn.getAttribute('data-dish').split('|');
@@ -323,18 +299,6 @@
       if(cur!==state.activeCat){ state.activeCat=cur; paintTabs(); ensureTab(cur); }
     });
   },{passive:true});
-
-  // ---- search ----
-  var searchbtn=document.getElementById('searchbtn'),searchwrap=document.getElementById('searchwrap'),
-      searchinput=document.getElementById('searchinput'),clearbtn=document.getElementById('clearbtn');
-  searchbtn.onclick=function(){
-    state.searchOpen=!state.searchOpen;
-    searchbtn.className='searchbtn'+(state.searchOpen?' on':'');
-    searchwrap.style.display=state.searchOpen?'block':'none';
-    if(state.searchOpen){ searchinput.focus(); } else { state.query=''; searchinput.value=''; clearbtn.style.display='none'; render(); }
-  };
-  searchinput.oninput=function(e){ state.query=e.target.value; clearbtn.style.display=state.query.length?'inline':'none'; render(); };
-  clearbtn.onclick=function(){ state.query=''; searchinput.value=''; clearbtn.style.display='none'; render(); searchinput.focus(); };
 
   // ---- bottom sheet ----
   var sheetRoot=document.getElementById('sheet-root');
