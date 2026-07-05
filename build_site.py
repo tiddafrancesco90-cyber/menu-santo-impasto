@@ -68,8 +68,22 @@ def fetch_records(token, base_id):
             url += "&offset=" + urllib.parse.quote(offset)
         r = urllib.request.Request(url)
         r.add_header("Authorization", "Bearer " + token)
-        with urllib.request.urlopen(r, timeout=30) as resp:
-            data = json.loads(resp.read().decode())
+        try:
+            with urllib.request.urlopen(r, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")
+            print("ERRORE Airtable: HTTP %s" % e.code)
+            if e.code == 403:
+                print(">> Il token NON ha il permesso di LEGGERE i record.")
+                print(">> Aggiungi al token lo scope 'data.records:read' e riprova.")
+                print(">> (in Colab serviva 'write', qui per leggere serve 'read').")
+            elif e.code == 404:
+                print(">> Base o tabella non trovata. Base id: %s, tabella: '%s'." % (base_id, TABLE))
+            elif e.code == 401:
+                print(">> Token non valido o scaduto. Controlla il secret AIRTABLE_TOKEN.")
+            print("Dettaglio:", body[:300])
+            sys.exit(1)
         records.extend(data.get("records", []))
         offset = data.get("offset")
         if not offset:
@@ -130,8 +144,10 @@ def render_js(data):
 def main():
     token = os.environ.get("AIRTABLE_TOKEN")
     base_id = os.environ.get("AIRTABLE_BASE_ID")
-    if not token or not base_id:
-        print("Mancano AIRTABLE_TOKEN o AIRTABLE_BASE_ID"); sys.exit(1)
+    if not token:
+        print("ERRORE: manca il secret AIRTABLE_TOKEN nel repository."); sys.exit(1)
+    if not base_id:
+        print("ERRORE: manca AIRTABLE_BASE_ID nel workflow."); sys.exit(1)
     recs = fetch_records(token, base_id)
     data = build_data(recs)
     n = sum(len(s["items"]) for s in data["sections"])
