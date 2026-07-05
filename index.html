@@ -22,12 +22,15 @@
 
   .shell{max-width:520px;margin:0 auto;background:linear-gradient(180deg,#f5ecd9 0%,#f2e6cf 55%,#eddfc4 100%);min-height:100vh;box-shadow:0 0 90px rgba(0,0,0,.5);position:relative;}
 
-  header.hero{position:relative;padding:62px 24px 40px;text-align:center;overflow:hidden;background:radial-gradient(135% 92% at 50% -14%,#843318 0%,#4c1f11 33%,#2b140b 63%,#1b0e07 100%);color:#f4e9d6;}
+  header.hero{position:relative;padding:62px 24px 34px;text-align:center;overflow:hidden;background:radial-gradient(135% 92% at 50% -14%,#843318 0%,#4c1f11 33%,#2b140b 63%,#1b0e07 100%);color:#f4e9d6;}
   .ember{position:absolute;top:-32%;left:50%;width:150%;height:82%;transform:translateX(-50%);background:radial-gradient(closest-side,rgba(230,150,52,.55),rgba(230,150,52,0) 72%);filter:blur(4px);animation:ember 7s ease-in-out infinite;pointer-events:none;}
   .kicker{animation:heroIn .7s ease both;animation-delay:.02s;font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#eaad55;font-weight:600;}
   .hero h1{animation:heroIn .8s ease both;animation-delay:.1s;font-family:'DM Serif Display',serif;font-size:clamp(52px,17vw,80px);line-height:.9;margin:16px 0 0;color:#fbf3e2;letter-spacing:.5px;text-shadow:0 2px 34px rgba(0,0,0,.45);}
   .subtitle{animation:heroIn .8s ease both;animation-delay:.18s;margin-top:14px;font-size:12px;letter-spacing:5px;text-transform:uppercase;color:#eaad55;font-weight:600;}
-  .motto{animation:heroIn .8s ease both;animation-delay:.26s;max-width:330px;margin:22px auto 0;font-family:'DM Serif Display',serif;font-style:italic;font-size:17px;line-height:1.5;color:#e6d5bc;}
+  .motto{animation:heroIn .8s ease both;animation-delay:.26s;max-width:330px;margin:22px auto 0;font-family:'DM Serif Display',serif;font-style:italic;font-size:17px;line-height:1.5;color:#e6d5bc;min-height:1px;}
+  .langbar{animation:heroIn .8s ease both;animation-delay:.34s;margin-top:22px;display:flex;gap:7px;justify-content:center;flex-wrap:wrap;}
+  .langbtn{padding:6px 12px;border-radius:999px;border:1px solid rgba(234,173,85,.5);background:rgba(255,255,255,.06);color:#ead6b4;font-size:12px;font-weight:600;letter-spacing:.5px;cursor:pointer;transition:all .18s ease;}
+  .langbtn.on{background:#eaad55;border-color:#eaad55;color:#2b140b;}
 
   nav.stick{position:sticky;top:0;z-index:30;background:rgba(244,235,215,.9);backdrop-filter:blur(12px) saturate(1.1);-webkit-backdrop-filter:blur(12px) saturate(1.1);border-bottom:1px solid #e1d2b3;box-shadow:0 8px 20px -14px rgba(60,30,10,.55);}
   .navrow{display:flex;align-items:center;gap:8px;padding:9px 12px;}
@@ -91,23 +94,24 @@
   <header class="hero">
     <div class="ember"></div>
     <div style="position:relative;">
-      <div class="kicker" id="h-kicker"></div>
-      <h1 id="h-name"></h1>
-      <div class="subtitle" id="h-subtitle"></div>
-      <p class="motto" id="h-motto"></p>
+      <div class="kicker">Trattoria · Pizzeria · Toscana</div>
+      <h1>Santo<br>Impasto</h1>
+      <div class="subtitle">Pizzeria &amp; Cucina</div>
+      <p class="motto" id="motto"></p>
+      <div class="langbar" id="langbar"></div>
     </div>
   </header>
 
   <nav class="stick" id="stickybar">
     <div class="navrow">
       <div id="tabrow"></div>
-      <button class="searchbtn" id="searchbtn">Cerca</button>
+      <button class="searchbtn" id="searchbtn"></button>
     </div>
     <div class="searchwrap" id="searchwrap" style="display:none;">
       <div class="searchbox">
-        <span>Cerca</span>
-        <input id="searchinput" placeholder="pizza, tonno, senza latte…" />
-        <button class="clearbtn" id="clearbtn" style="display:none;">Pulisci</button>
+        <span id="searchlabel"></span>
+        <input id="searchinput" />
+        <button class="clearbtn" id="clearbtn" style="display:none;"></button>
       </div>
     </div>
   </nav>
@@ -116,13 +120,13 @@
 
   <footer>
     <div id="f-coperto"></div>
-    <div>* prodotto surgelato all'origine o congelato in loco</div>
-    <div class="note">Menù allergeni e informazioni sugli ingredienti disponibili su richiesta.</div>
-    <div class="name" id="f-name"></div>
-    <div class="tag" id="f-tag"></div>
+    <div id="f-frozen"></div>
+    <div class="note" id="f-note"></div>
+    <div class="name">Santo Impasto</div>
+    <div class="tag">Pizzeria &amp; Cucina</div>
   </footer>
 
-  <button class="fab" id="fab"><span class="i">i</span>Allergeni</button>
+  <button class="fab" id="fab"><span class="i">i</span><span id="fablabel"></span></button>
 
   <div class="grain"></div>
 </div>
@@ -132,94 +136,173 @@
 <script src="./data.js"></script>
 <script>
 (function(){
-  var D = window.MENU_DATA;
-  var A = D.allergens, ORDER = D.order;
-  var state = { activeCat: D.sections[0].id, query:"", searchOpen:false };
+  var D = window.MENU_DATA || {restaurant:{name:"Santo Impasto",coperto:2}, sections:[]};
+  var LANGS = ["it","en","de","es","fr"];
+  var LANGLABEL = {it:"IT",en:"EN",de:"DE",es:"ES",fr:"FR"};
 
-  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  // ---- traduzioni curate dell'interfaccia (statiche) ----
+  var UI = {
+    it:{search:"Cerca",ph:"pizza, tonno, senza latte…",clear:"Pulisci",allergens:"Allergeni",noAllergens:"Senza allergeni",dishSub:"Allergeni presenti in questo piatto",legendTitle:"I 14 allergeni",legendSub:"La legenda completa · Reg. UE 1169/2011",none:"Nessuno dei 14 allergeni principali in questo piatto.",frozen:"Prodotto surgelato all'origine o congelato in loco.",coperto:"Coperto € %s a persona",frozenLegend:"* prodotto surgelato all'origine o congelato in loco",note:"Menù allergeni e informazioni sugli ingredienti disponibili su richiesta.",legendNote:"Menù allergeni completo e informazioni sugli ingredienti disponibili su richiesta. Rif. Reg. UE 1169/2011.",noRes:"Nessun piatto trovato",noResSub:"Prova con un altro termine."},
+    en:{search:"Search",ph:"pizza, tuna, no milk…",clear:"Clear",allergens:"Allergens",noAllergens:"No allergens",dishSub:"Allergens in this dish",legendTitle:"The 14 allergens",legendSub:"The full list · EU Reg. 1169/2011",none:"None of the 14 main allergens in this dish.",frozen:"Product deep-frozen at source or frozen on site.",coperto:"Cover charge € %s per person",frozenLegend:"* product deep-frozen at source or frozen on site",note:"Full allergen menu and ingredient information available on request.",legendNote:"Full allergen menu and ingredient information available on request. Ref. EU Reg. 1169/2011.",noRes:"No dishes found",noResSub:"Try another term."},
+    de:{search:"Suchen",ph:"Pizza, Thunfisch, ohne Milch…",clear:"Löschen",allergens:"Allergene",noAllergens:"Ohne Allergene",dishSub:"Allergene in diesem Gericht",legendTitle:"Die 14 Allergene",legendSub:"Die vollständige Liste · EU-Verordnung 1169/2011",none:"Keines der 14 Hauptallergene in diesem Gericht.",frozen:"Produkt am Ursprung tiefgekühlt oder vor Ort eingefroren.",coperto:"Gedeck € %s pro Person",frozenLegend:"* am Ursprung tiefgekühltes oder vor Ort eingefrorenes Produkt",note:"Vollständige Allergen- und Zutateninformationen auf Anfrage erhältlich.",legendNote:"Vollständige Allergen- und Zutateninformationen auf Anfrage. Ref. EU-Verordnung 1169/2011.",noRes:"Keine Gerichte gefunden",noResSub:"Versuchen Sie einen anderen Begriff."},
+    es:{search:"Buscar",ph:"pizza, atún, sin leche…",clear:"Borrar",allergens:"Alérgenos",noAllergens:"Sin alérgenos",dishSub:"Alérgenos presentes en este plato",legendTitle:"Los 14 alérgenos",legendSub:"La lista completa · Reg. UE 1169/2011",none:"Ninguno de los 14 alérgenos principales en este plato.",frozen:"Producto ultracongelado en origen o congelado in situ.",coperto:"Cubierto € %s por persona",frozenLegend:"* producto ultracongelado en origen o congelado in situ",note:"Menú de alérgenos e información sobre ingredientes disponibles a petición.",legendNote:"Menú de alérgenos e información sobre ingredientes disponibles a petición. Ref. Reg. UE 1169/2011.",noRes:"No se han encontrado platos",noResSub:"Prueba con otro término."},
+    fr:{search:"Rechercher",ph:"pizza, thon, sans lait…",clear:"Effacer",allergens:"Allergènes",noAllergens:"Sans allergènes",dishSub:"Allergènes présents dans ce plat",legendTitle:"Les 14 allergènes",legendSub:"La liste complète · Règl. UE 1169/2011",none:"Aucun des 14 allergènes principaux dans ce plat.",frozen:"Produit surgelé à l'origine ou congelé sur place.",coperto:"Couvert € %s par personne",frozenLegend:"* produit surgelé à l'origine ou congelé sur place",note:"Menu des allergènes et informations sur les ingrédients disponibles sur demande.",legendNote:"Menu des allergènes et informations sur les ingrédients disponibles sur demande. Réf. Règl. UE 1169/2011.",noRes:"Aucun plat trouvé",noResSub:"Essayez un autre terme."}
+  };
 
-  // ---- header / footer ----
-  document.getElementById('h-kicker').textContent   = D.restaurant.kicker;
-  document.getElementById('h-name').innerHTML        = esc(D.restaurant.name).replace(/ /,'<br>');
-  document.getElementById('h-subtitle').textContent  = D.restaurant.subtitle;
-  document.getElementById('h-motto').innerHTML       = esc(D.restaurant.motto).replace(/\n/g,'<br>');
-  document.getElementById('f-coperto').textContent   = 'Coperto € ' + String(D.restaurant.coperto).replace('.',',') + ' a persona';
-  document.getElementById('f-name').textContent      = D.restaurant.name;
-  document.getElementById('f-tag').textContent       = D.restaurant.subtitle;
+  var MOTTO = {
+    it:"«Ogni pizza è un piccolo miracolo.\nLa lievitazione fa il resto.»",
+    en:"«Every pizza is a small miracle.\nThe leavening does the rest.»",
+    de:"«Jede Pizza ist ein kleines Wunder.\nDie Teigreife macht den Rest.»",
+    es:"«Cada pizza es un pequeño milagro.\nLa fermentación hace el resto.»",
+    fr:"«Chaque pizza est un petit miracle.\nLa levée fait le reste.»"
+  };
 
-  // ---- tabs ----
-  var tabrow = document.getElementById('tabrow');
-  D.sections.forEach(function(sec){
-    var b = document.createElement('button');
-    b.className = 'tab' + (sec.id===state.activeCat?' active':'');
-    b.setAttribute('data-tab', sec.id);
-    b.textContent = sec.title.replace(/^Le Pizze — /,'');
-    b.onclick = function(){ gotoCat(sec.id); };
-    tabrow.appendChild(b);
+  // ---- categorie (titolo + sottotitolo) curate ----
+  var CAT = {
+    antipasti:{title:{it:"Antipasti & Sfizi",en:"Starters & Bites",de:"Vorspeisen & Häppchen",es:"Entrantes y Aperitivos",fr:"Entrées & Amuse-bouches"},sub:{it:"gli inizi che contano",en:"beginnings that matter",de:"Anfänge, die zählen",es:"los comienzos que cuentan",fr:"des débuts qui comptent"}},
+    fritti:{title:{it:"Fritti",en:"Fried",de:"Frittiertes",es:"Fritos",fr:"Fritures"},sub:{it:"il peccato è servito",en:"sin is served",de:"die Sünde ist serviert",es:"el pecado está servido",fr:"le péché est servi"}},
+    classiche:{title:{it:"Le Pizze — Classiche",en:"Pizzas — Classic",de:"Pizzas — Klassisch",es:"Pizzas — Clásicas",fr:"Pizzas — Classiques"},sub:{it:"lievitazione 48h",en:"48h leavening",de:"48 Std. Teigführung",es:"fermentación 48h",fr:"levée 48h"}},
+    gourmet:{title:{it:"Le Pizze — Gourmet",en:"Pizzas — Gourmet",de:"Pizzas — Gourmet",es:"Pizzas — Gourmet",fr:"Pizzas — Gourmet"},sub:{it:"quelle che si danno un tono",en:"the ones that show off",de:"die mit dem gewissen Etwas",es:"las que presumen",fr:"celles qui en jettent"}},
+    calzoni:{title:{it:"Calzoni",en:"Calzoni",de:"Calzoni",es:"Calzoni",fr:"Calzoni"},sub:{it:"la pizza che si ripiega su sé stessa",en:"the pizza that folds on itself",de:"die Pizza, die sich selbst umschließt",es:"la pizza que se pliega sobre sí misma",fr:"la pizza qui se replie sur elle-même"}},
+    primi:{title:{it:"Primi",en:"First Courses",de:"Erste Gänge",es:"Primeros platos",fr:"Premiers plats"},sub:{it:"fatti come si deve",en:"made the right way",de:"richtig gemacht",es:"hechos como es debido",fr:"faits comme il faut"}},
+    secondi:{title:{it:"Secondi",en:"Main Courses",de:"Hauptgerichte",es:"Segundos platos",fr:"Plats principaux"},sub:{it:"roba seria",en:"serious stuff",de:"ernste Sache",es:"cosa seria",fr:"du sérieux"}},
+    contorni:{title:{it:"Contorni",en:"Sides",de:"Beilagen",es:"Guarniciones",fr:"Accompagnements"},sub:{it:"mai da soli",en:"never alone",de:"nie allein",es:"nunca solos",fr:"jamais seuls"}},
+    dolci:{title:{it:"Dolci",en:"Desserts",de:"Desserts",es:"Postres",fr:"Desserts"},sub:{it:"fatti in casa",en:"homemade",de:"hausgemacht",es:"caseros",fr:"faits maison"}},
+    bevande:{title:{it:"Bevande",en:"Drinks",de:"Getränke",es:"Bebidas",fr:"Boissons"},sub:{it:"per accompagnare",en:"to go with",de:"zum Begleiten",es:"para acompañar",fr:"pour accompagner"}}
+  };
+
+  // ---- allergeni: codice + nome per lingua ----
+  var ALL = {
+    glutine:{code:"Gl",name:{it:"Glutine",en:"Gluten",de:"Gluten",es:"Gluten",fr:"Gluten"}},
+    crostacei:{code:"Cr",name:{it:"Crostacei",en:"Crustaceans",de:"Krebstiere",es:"Crustáceos",fr:"Crustacés"}},
+    uova:{code:"Uo",name:{it:"Uova",en:"Eggs",de:"Eier",es:"Huevos",fr:"Œufs"}},
+    pesce:{code:"Pe",name:{it:"Pesce",en:"Fish",de:"Fisch",es:"Pescado",fr:"Poisson"}},
+    arachidi:{code:"Ar",name:{it:"Arachidi",en:"Peanuts",de:"Erdnüsse",es:"Cacahuetes",fr:"Arachides"}},
+    soia:{code:"So",name:{it:"Soia",en:"Soy",de:"Soja",es:"Soja",fr:"Soja"}},
+    latte:{code:"La",name:{it:"Latte",en:"Milk",de:"Milch",es:"Leche",fr:"Lait"}},
+    frutta:{code:"Fg",name:{it:"Frutta a guscio",en:"Tree nuts",de:"Schalenfrüchte",es:"Frutos de cáscara",fr:"Fruits à coque"}},
+    sedano:{code:"Se",name:{it:"Sedano",en:"Celery",de:"Sellerie",es:"Apio",fr:"Céleri"}},
+    senape:{code:"Sn",name:{it:"Senape",en:"Mustard",de:"Senf",es:"Mostaza",fr:"Moutarde"}},
+    sesamo:{code:"Ss",name:{it:"Sesamo",en:"Sesame",de:"Sesam",es:"Sésamo",fr:"Sésame"}},
+    solfiti:{code:"Sl",name:{it:"Solfiti",en:"Sulphites",de:"Sulfite",es:"Sulfitos",fr:"Sulfites"}},
+    lupini:{code:"Lu",name:{it:"Lupini",en:"Lupin",de:"Lupinen",es:"Altramuces",fr:"Lupin"}},
+    molluschi:{code:"Mo",name:{it:"Molluschi",en:"Molluscs",de:"Weichtiere",es:"Moluscos",fr:"Mollusques"}}
+  };
+  var ORDER = ["glutine","crostacei","uova","pesce","arachidi","soia","latte","frutta","sedano","senape","sesamo","solfiti","lupini","molluschi"];
+
+  // lingua iniziale: dal browser, altrimenti IT
+  var nav0 = (navigator.language||"it").slice(0,2).toLowerCase();
+  var state = { lang: (LANGS.indexOf(nav0)>=0?nav0:"it"), activeCat:(D.sections[0]||{}).id, query:"", searchOpen:false };
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function t(obj){ if(obj==null) return ""; if(typeof obj==="string") return obj; return obj[state.lang]!=null?obj[state.lang]:(obj.it!=null?obj.it:""); }
+  function ui(k){ return (UI[state.lang]||UI.it)[k]; }
+  function catTitle(sec){ return CAT[sec.id]?t(CAT[sec.id].title):(sec.title||sec.id); }
+  function catSub(sec){ return CAT[sec.id]?t(CAT[sec.id].sub):(sec.subtitle||""); }
+  function tabLabel(sec){ var s=catTitle(sec); var i=s.indexOf("— "); return i>=0?s.slice(i+2):s; }
+  function allName(k){ return ALL[k]?t(ALL[k].name):k; }
+  function allCode(k){ return ALL[k]?ALL[k].code:"?"; }
+
+  // ---- language bar ----
+  var langbar=document.getElementById('langbar');
+  LANGS.forEach(function(lg){
+    var b=document.createElement('button');
+    b.className='langbtn'+(lg===state.lang?' on':'');
+    b.setAttribute('data-lang',lg);
+    b.textContent=LANGLABEL[lg];
+    b.onclick=function(){ setLang(lg); };
+    langbar.appendChild(b);
   });
-
-  function paintTabs(){
-    Array.prototype.forEach.call(tabrow.children, function(b){
-      b.className = 'tab' + (b.getAttribute('data-tab')===state.activeCat?' active':'');
+  function paintLang(){
+    Array.prototype.forEach.call(langbar.children,function(b){
+      b.className='langbtn'+(b.getAttribute('data-lang')===state.lang?' on':'');
     });
   }
-  function ensureTab(id){
-    var b = tabrow.querySelector('[data-tab="'+id+'"]');
-    if(b) tabrow.scrollTo({left: Math.max(0, b.offsetLeft - 16), behavior:'smooth'});
+  function setLang(lg){
+    if(lg===state.lang) return;
+    state.lang=lg; document.documentElement.setAttribute('lang',lg);
+    closeSheet(); paintLang(); applyStatic(); buildTabs(); render();
   }
+
+  // ---- static texts (header/footer/search/fab) ----
+  function applyStatic(){
+    document.getElementById('motto').innerHTML=esc(t(MOTTO)).replace(/\n/g,'<br>');
+    document.getElementById('searchbtn').textContent=ui('search');
+    document.getElementById('searchlabel').textContent=ui('search');
+    document.getElementById('searchinput').placeholder=ui('ph');
+    document.getElementById('clearbtn').textContent=ui('clear');
+    document.getElementById('fablabel').textContent=ui('allergens');
+    var coperto=(D.restaurant&&D.restaurant.coperto!=null)?D.restaurant.coperto:2;
+    document.getElementById('f-coperto').textContent=ui('coperto').replace('%s',String(coperto).replace('.',','));
+    document.getElementById('f-frozen').textContent=ui('frozenLegend');
+    document.getElementById('f-note').textContent=ui('note');
+  }
+
+  // ---- tabs ----
+  var tabrow=document.getElementById('tabrow');
+  function buildTabs(){
+    tabrow.innerHTML='';
+    (D.sections||[]).forEach(function(sec){
+      var b=document.createElement('button');
+      b.className='tab'+(sec.id===state.activeCat?' active':'');
+      b.setAttribute('data-tab',sec.id);
+      b.textContent=tabLabel(sec);
+      b.onclick=function(){ gotoCat(sec.id); };
+      tabrow.appendChild(b);
+    });
+  }
+  function paintTabs(){ Array.prototype.forEach.call(tabrow.children,function(b){ b.className='tab'+(b.getAttribute('data-tab')===state.activeCat?' active':''); }); }
+  function ensureTab(id){ var b=tabrow.querySelector('[data-tab="'+id+'"]'); if(b) tabrow.scrollTo({left:Math.max(0,b.offsetLeft-16),behavior:'smooth'}); }
   function gotoCat(id){
-    var el = document.getElementById('sec-'+id);
-    if(!el) return;
-    var bar = document.getElementById('stickybar');
-    var off = (bar?bar.offsetHeight:60) + 10;
-    var y = el.getBoundingClientRect().top + window.scrollY - off;
-    window.scrollTo({top:y, behavior:'smooth'});
-    state.activeCat = id; paintTabs(); ensureTab(id);
+    var el=document.getElementById('sec-'+id); if(!el) return;
+    var bar=document.getElementById('stickybar'); var off=(bar?bar.offsetHeight:60)+10;
+    var y=el.getBoundingClientRect().top+window.scrollY-off;
+    window.scrollTo({top:y,behavior:'smooth'});
+    state.activeCat=id; paintTabs(); ensureTab(id);
   }
 
   // ---- render sections ----
-  var main = document.getElementById('main');
+  var main=document.getElementById('main');
   function render(){
-    var q = state.query.trim().toLowerCase();
-    main.innerHTML = '';
-    var gi = 0, shown = 0;
-    D.sections.forEach(function(sec){
-      var items = sec.items;
+    var q=state.query.trim().toLowerCase();
+    main.innerHTML=''; var gi=0, shown=0;
+    (D.sections||[]).forEach(function(sec){
+      var items=sec.items||[];
       if(q){
-        items = items.filter(function(it){
-          var hay = it.name + ' ' + (it.desc||'') + ' ' + it.keys.map(function(k){return A[k].name;}).join(' ');
-          return hay.toLowerCase().indexOf(q) !== -1;
+        items=items.filter(function(it){
+          var hay=it.name+' '+t(it.desc)+' '+(it.keys||[]).map(function(k){return allName(k);}).join(' ');
+          return hay.toLowerCase().indexOf(q)!==-1;
         });
         if(items.length===0) return;
       }
       shown++;
-      var sc = document.createElement('section');
-      sc.className='sec'; sc.id='sec-'+sec.id; sc.setAttribute('data-sec', sec.id);
-      var head = '<div class="sechead"><h2>'+esc(sec.title)+'</h2>'+(sec.subtitle?'<span class="sub">'+esc(sec.subtitle)+'</span>':'')+'</div>';
-      var cards = '<div class="cards">';
+      var sc=document.createElement('section');
+      sc.className='sec'; sc.id='sec-'+sec.id; sc.setAttribute('data-sec',sec.id);
+      var subt=catSub(sec);
+      var head='<div class="sechead"><h2>'+esc(catTitle(sec))+'</h2>'+(subt?'<span class="sub">'+esc(subt)+'</span>':'')+'</div>';
+      var cards='<div class="cards">';
       items.forEach(function(it){
-        var has = it.keys.length>0;
-        var delay = Math.min(gi*35,520); gi++;
-        cards += '<article class="card" style="animation-delay:'+delay+'ms">'
-          + '<div class="row"><div style="flex:1;min-width:0;">'
-          + '<h3>'+esc(it.name)+(it.frozen?'<span class="frozen"> *</span>':'')+'</h3>'
-          + (it.desc?'<p>'+esc(it.desc)+'</p>':'')
-          + '<button class="pill'+(has?'':' none')+'" data-dish="'+esc(sec.id)+'|'+esc(it.name)+'"><span class="dot"></span>'+(has?'Allergeni':'Senza allergeni')+'</button>'
-          + '</div><div class="price">'+esc(it.price)+'</div></div></article>';
+        var has=(it.keys||[]).length>0;
+        var delay=Math.min(gi*35,520); gi++;
+        var desc=t(it.desc);
+        cards+='<article class="card" style="animation-delay:'+delay+'ms">'
+          +'<div class="row"><div style="flex:1;min-width:0;">'
+          +'<h3>'+esc(it.name)+(it.frozen?'<span class="frozen"> *</span>':'')+'</h3>'
+          +(desc?'<p>'+esc(desc)+'</p>':'')
+          +'<button class="pill'+(has?'':' none')+'" data-dish="'+esc(sec.id)+'|'+esc(it.name)+'"><span class="dot"></span>'+(has?ui('allergens'):ui('noAllergens'))+'</button>'
+          +'</div><div class="price">'+esc(it.price)+'</div></div></article>';
       });
-      cards += '</div>';
-      sc.innerHTML = head + cards;
-      main.appendChild(sc);
+      cards+='</div>';
+      sc.innerHTML=head+cards; main.appendChild(sc);
     });
-    if(q && shown===0){
-      main.innerHTML = '<div class="nores"><div class="big">Nessun piatto trovato</div><div>Prova con un altro termine.</div></div>';
+    if(q&&shown===0){
+      main.innerHTML='<div class="nores"><div class="big">'+esc(ui('noRes'))+'</div><div>'+esc(ui('noResSub'))+'</div></div>';
     }
-    // wire pills
-    Array.prototype.forEach.call(main.querySelectorAll('[data-dish]'), function(btn){
-      btn.onclick = function(){
-        var parts = btn.getAttribute('data-dish').split('|');
-        var sec = D.sections.filter(function(s){return s.id===parts[0];})[0];
-        var it  = sec.items.filter(function(x){return x.name===parts[1];})[0];
+    Array.prototype.forEach.call(main.querySelectorAll('[data-dish]'),function(btn){
+      btn.onclick=function(){
+        var p=btn.getAttribute('data-dish').split('|');
+        var sec=(D.sections||[]).filter(function(s){return s.id===p[0];})[0];
+        var it=(sec.items||[]).filter(function(x){return x.name===p[1];})[0];
         openDish(it);
       };
     });
@@ -227,35 +310,28 @@
 
   // ---- scroll spy ----
   var raf=null;
-  window.addEventListener('scroll', function(){
+  window.addEventListener('scroll',function(){
     if(raf) return;
-    raf = requestAnimationFrame(function(){
+    raf=requestAnimationFrame(function(){
       raf=null;
-      var bar=document.getElementById('stickybar');
-      var off=(bar?bar.offsetHeight:60)+10;
+      var bar=document.getElementById('stickybar'); var off=(bar?bar.offsetHeight:60)+10;
       var secs=Array.prototype.slice.call(document.querySelectorAll('[data-sec]'));
       var cur=state.activeCat;
       secs.forEach(function(s){ if(s.getBoundingClientRect().top-off<=1) cur=s.getAttribute('data-sec'); });
       if(cur!==state.activeCat){ state.activeCat=cur; paintTabs(); ensureTab(cur); }
     });
-  }, {passive:true});
+  },{passive:true});
 
   // ---- search ----
-  var searchbtn=document.getElementById('searchbtn'),
-      searchwrap=document.getElementById('searchwrap'),
-      searchinput=document.getElementById('searchinput'),
-      clearbtn=document.getElementById('clearbtn');
+  var searchbtn=document.getElementById('searchbtn'),searchwrap=document.getElementById('searchwrap'),
+      searchinput=document.getElementById('searchinput'),clearbtn=document.getElementById('clearbtn');
   searchbtn.onclick=function(){
     state.searchOpen=!state.searchOpen;
     searchbtn.className='searchbtn'+(state.searchOpen?' on':'');
     searchwrap.style.display=state.searchOpen?'block':'none';
     if(state.searchOpen){ searchinput.focus(); } else { state.query=''; searchinput.value=''; clearbtn.style.display='none'; render(); }
   };
-  searchinput.oninput=function(e){
-    state.query=e.target.value;
-    clearbtn.style.display=state.query.length?'inline':'none';
-    render();
-  };
+  searchinput.oninput=function(e){ state.query=e.target.value; clearbtn.style.display=state.query.length?'inline':'none'; render(); };
   clearbtn.onclick=function(){ state.query=''; searchinput.value=''; clearbtn.style.display='none'; render(); searchinput.focus(); };
 
   // ---- bottom sheet ----
@@ -263,42 +339,38 @@
   function closeSheet(){ sheetRoot.innerHTML=''; }
   function buildSheet(inner){
     sheetRoot.innerHTML='';
-    var bd=document.createElement('div'); bd.className='backdrop';
-    bd.onclick=closeSheet;
-    var sh=document.createElement('div'); sh.className='sheet';
-    sh.onclick=function(e){ e.stopPropagation(); };
-    sh.innerHTML=inner;
-    bd.appendChild(sh); sheetRoot.appendChild(bd);
+    var bd=document.createElement('div'); bd.className='backdrop'; bd.onclick=closeSheet;
+    var sh=document.createElement('div'); sh.className='sheet'; sh.onclick=function(e){e.stopPropagation();};
+    sh.innerHTML=inner; bd.appendChild(sh); sheetRoot.appendChild(bd);
     var cb=sh.querySelector('.closebtn'); if(cb) cb.onclick=closeSheet;
   }
   function openDish(it){
     var head='<div class="handle"></div><div class="sheethead"><div style="min-width:0;">'
-      +'<h3>'+esc(it.name)+'</h3><p>Allergeni presenti in questo piatto</p></div>'
-      +'<button class="closebtn">×</button></div>';
+      +'<h3>'+esc(it.name)+'</h3><p>'+esc(ui('dishSub'))+'</p></div><button class="closebtn">×</button></div>';
     var body;
-    if(it.keys.length===0){
-      body='<div class="emptybox">Nessuno dei 14 allergeni principali in questo piatto.</div>';
-    } else {
+    if((it.keys||[]).length===0){ body='<div class="emptybox">'+esc(ui('none'))+'</div>'; }
+    else {
       body='<div style="display:grid;grid-template-columns:1fr;gap:0;margin-top:8px;">';
-      it.keys.forEach(function(k){ var a=A[k]; body+='<div class="arow"><span class="acode">'+a.code+'</span><span class="aname">'+esc(a.name)+'</span></div>'; });
+      it.keys.forEach(function(k){ body+='<div class="arow"><span class="acode">'+esc(allCode(k))+'</span><span class="aname">'+esc(allName(k))+'</span></div>'; });
       body+='</div>';
     }
-    if(it.frozen){ body+='<div class="frozennote"><b>*</b><span>Prodotto surgelato all\'origine o congelato in loco.</span></div>'; }
+    if(it.frozen){ body+='<div class="frozennote"><b>*</b><span>'+esc(ui('frozen'))+'</span></div>'; }
     buildSheet(head+body);
   }
   function openLegend(){
     var head='<div class="handle"></div><div class="sheethead"><div style="min-width:0;">'
-      +'<h3>I 14 allergeni</h3><p>La legenda completa · Reg. UE 1169/2011</p></div>'
-      +'<button class="closebtn">×</button></div>';
+      +'<h3>'+esc(ui('legendTitle'))+'</h3><p>'+esc(ui('legendSub'))+'</p></div><button class="closebtn">×</button></div>';
     var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:8px;">';
-    ORDER.forEach(function(k){ var a=A[k]; body+='<div class="arow"><span class="acode">'+a.code+'</span><span class="aname">'+esc(a.name)+'</span></div>'; });
-    body+='</div><p class="sheetnote">Menù allergeni completo e informazioni sugli ingredienti disponibili su richiesta. Rif. Reg. UE 1169/2011.</p>';
+    ORDER.forEach(function(k){ body+='<div class="arow"><span class="acode">'+esc(allCode(k))+'</span><span class="aname">'+esc(allName(k))+'</span></div>'; });
+    body+='</div><p class="sheetnote">'+esc(ui('legendNote'))+'</p>';
     buildSheet(head+body);
   }
   document.getElementById('fab').onclick=openLegend;
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSheet(); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeSheet(); });
 
-  render();
+  // ---- go ----
+  document.documentElement.setAttribute('lang',state.lang);
+  applyStatic(); buildTabs(); render();
 })();
 </script>
 </body>

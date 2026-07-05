@@ -25,14 +25,15 @@ jobs:
         env:
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
           AIRTABLE_BASE_ID: apphrr7D4PXnxSrO0
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
         run: python3 build_site.py
 
       - name: Commit e push se cambiato
         run: |
-          if [ -n "$(git status --porcelain data.js)" ]; then
+          if [ -n "$(git status --porcelain data.js translations_cache.json)" ]; then
             git config user.name "Santo Impasto Bot"
             git config user.email "bot@santoimpasto.local"
-            git add data.js
+            git add data.js translations_cache.json
             git commit -m "Aggiornamento menu da Airtable [auto]"
             git push
             echo "Menu aggiornato e ripubblicato."
