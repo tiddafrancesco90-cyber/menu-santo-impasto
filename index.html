@@ -190,9 +190,10 @@
   };
   var ORDER = ["glutine","crostacei","uova","pesce","arachidi","soia","latte","frutta","sedano","senape","sesamo","solfiti","lupini","molluschi"];
 
-  // lingua iniziale: dal browser, altrimenti IT
-  var nav0 = (navigator.language||"it").slice(0,2).toLowerCase();
-  var state = { lang: (LANGS.indexOf(nav0)>=0?nav0:"it"), activeCat:(D.sections[0]||{}).id, query:"", searchOpen:false };
+  // In modalità demo il menù resta in italiano: le altre lingue sono una
+  // funzione opzionale (mostrata ma non attiva). Per attivarle: DEMO_MODE=false.
+  var DEMO_MODE = true;
+  var state = { lang: "it", activeCat:(D.sections[0]||{}).id, query:"", searchOpen:false };
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function t(obj){ if(obj==null) return ""; if(typeof obj==="string") return obj; return obj[state.lang]!=null?obj[state.lang]:(obj.it!=null?obj.it:""); }
@@ -219,6 +220,7 @@
     });
   }
   function setLang(lg){
+    if(DEMO_MODE && lg!=="it"){ openLangInfo(); return; }
     if(lg===state.lang) return;
     state.lang=lg; document.documentElement.setAttribute('lang',lg);
     closeSheet(); paintLang(); applyStatic(); buildTabs(); render();
@@ -363,6 +365,21 @@
     var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:8px;">';
     ORDER.forEach(function(k){ body+='<div class="arow"><span class="acode">'+esc(allCode(k))+'</span><span class="aname">'+esc(allName(k))+'</span></div>'; });
     body+='</div><p class="sheetnote">'+esc(ui('legendNote'))+'</p>';
+    buildSheet(head+body);
+  }
+  function openLangInfo(){
+    var head='<div class="handle"></div><div class="sheethead"><div style="min-width:0;">'
+      +'<h3>Menù multilingua</h3><p>Funzione opzionale</p></div><button class="closebtn">×</button></div>';
+    var body='<div style="margin-top:10px;font-size:14px;line-height:1.65;color:#5c4a38;">'
+      +'La traduzione del menù in <b>inglese, tedesco, spagnolo e francese</b> è una funzione opzionale, attivabile su richiesta.'
+      +'<br><br>In questa demo il menù è mostrato in italiano. Con l\'attivazione, l\'intero contenuto — descrizioni dei piatti comprese — viene tradotto automaticamente e resta sempre allineato al menù.'
+      +'</div>'
+      +'<div style="margin-top:16px;display:flex;gap:9px;flex-wrap:wrap;">'
+      +'<span style="padding:5px 11px;border-radius:999px;background:#faeadf;border:1px solid #eecebc;color:#b0472a;font-size:12px;font-weight:600;">EN English</span>'
+      +'<span style="padding:5px 11px;border-radius:999px;background:#faeadf;border:1px solid #eecebc;color:#b0472a;font-size:12px;font-weight:600;">DE Deutsch</span>'
+      +'<span style="padding:5px 11px;border-radius:999px;background:#faeadf;border:1px solid #eecebc;color:#b0472a;font-size:12px;font-weight:600;">ES Español</span>'
+      +'<span style="padding:5px 11px;border-radius:999px;background:#faeadf;border:1px solid #eecebc;color:#b0472a;font-size:12px;font-weight:600;">FR Français</span>'
+      +'</div>';
     buildSheet(head+body);
   }
   document.getElementById('fab').onclick=openLegend;
