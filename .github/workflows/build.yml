@@ -1,0 +1,41 @@
+name: Rigenera menu da Airtable
+
+on:
+  workflow_dispatch:            # pulsante manuale "Run workflow"
+  repository_dispatch:          # trigger via webhook (Airtable)
+    types: [rebuild]
+  schedule:
+    - cron: '*/30 * * * *'      # rete di sicurezza: ogni 30 minuti
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rigenera-menu
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Genera data.js da Airtable
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          AIRTABLE_BASE_ID: apphrr7D4PXnxSrO0
+        run: python3 build_site.py
+
+      - name: Commit e push se cambiato
+        run: |
+          if [ -n "$(git status --porcelain data.js)" ]; then
+            git config user.name "Santo Impasto Bot"
+            git config user.email "bot@santoimpasto.local"
+            git add data.js
+            git commit -m "Aggiornamento menu da Airtable [auto]"
+            git push
+            echo "Menu aggiornato e ripubblicato."
+          else
+            echo "Nessuna modifica: data.js gia' allineato."
+          fi
