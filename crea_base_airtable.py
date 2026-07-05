@@ -28,7 +28,7 @@ import json, sys, time, getpass
 import urllib.request, urllib.error
 
 API = "https://api.airtable.com/v0"
-BASE_NAME = "Menu Santo Impasto"   # <-- deve combaciare col nome della base creata a mano
+BASE_NAME = "Menu Santo"   # <-- nome della base creata a mano (rinominarla NON rompe il token)
 TABLE_NAME = "Piatti"
 
 # ---- I 14 allergeni (etichette che appariranno in Airtable) ----
@@ -135,15 +135,24 @@ def main():
         print("  ERRORE (%s): %s" % (st, res))
         print("  Controlla che il token abbia lo scope 'schema.bases:read'.")
         return
+    bases = res.get("bases", [])
     base_id = None
-    for b in res.get("bases", []):
+    for b in bases:
         if b.get("name","").strip() == BASE_NAME:
             base_id = b["id"]; break
     if not base_id:
-        print("  Non trovata. Crea prima una base VUOTA chiamata esattamente:")
-        print("      %s" % BASE_NAME)
-        print("  (Home Airtable -> Create -> Start from scratch), poi rilancia.")
-        return
+        # rete di sicurezza: se il token vede UNA sola base, usa quella
+        if len(bases) == 1:
+            base_id = bases[0]["id"]
+            print("  Nome '%s' non combacia, ma il token vede una sola base" % BASE_NAME)
+            print("  ('%s'): uso quella." % bases[0].get("name"))
+        else:
+            print("  Non trovata una base chiamata '%s'." % BASE_NAME)
+            print("  Basi visibili dal token:")
+            for b in bases:
+                print("    - %s (%s)" % (b.get("name"), b["id"]))
+            print("  Rinomina la base in '%s' oppure dimmi quale usare." % BASE_NAME)
+            return
     print("  Trovata: %s" % base_id)
 
     # 2) crea la tabella "Piatti"
