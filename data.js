@@ -1,9 +1,12 @@
 /* GENERATO AUTOMATICAMENTE DA build_site.py — non modificare a mano.
-   Fonte dati: Airtable (tabella 'Piatti'). Descrizioni: DeepL. */
+   Fonte: Airtable (Piatti + Categorie + Testi sito). Descrizioni: DeepL. */
 window.MENU_DATA = {
-  "restaurant": {
-    "name": "Santo Impasto",
-    "coperto": 2
+  "site": {
+    "coperto": "2",
+    "motto": "«Ogni pizza è un piccolo miracolo.\nLa lievitazione fa il resto.»",
+    "frozenLegend": "* prodotto surgelato all'origine o congelato in loco",
+    "footerNote": "Menù allergeni e informazioni sugli ingredienti disponibili su richiesta.",
+    "legendNote": "Menù allergeni completo e informazioni sugli ingredienti disponibili su richiesta. Rif. Reg. UE 1169/2011."
   },
   "sections": [
     {
