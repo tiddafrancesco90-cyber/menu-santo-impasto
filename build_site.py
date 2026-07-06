@@ -1,50 +1,75 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Genera data.js da Airtable (tabella 'Piatti').
-Traduce SOLO le descrizioni dei piatti in EN/DE/ES/FR tramite DeepL,
-con cache su translations_cache.json (traduce solo cio' che e' nuovo/cambiato).
-Il resto dei testi (interfaccia, categorie, allergeni, motto) e' curato
-a mano dentro index.html, quindi qui non serve tradurlo.
+Genera data.js da Airtable.
+Legge tre tabelle (le ultime due sono opzionali: se mancano, si usano
+i valori di default e il sito continua a funzionare):
+  - "Piatti"      : i piatti (obbligatoria)
+  - "Categorie"   : sezioni + sottotitoli + visibilita' + ordine (opzionale)
+  - "Testi sito"  : motto, coperto, note (opzionale)
 
-Env richieste:
-  AIRTABLE_TOKEN, AIRTABLE_BASE_ID   (obbligatorie)
-  DEEPL_API_KEY                      (opzionale: senza, le descrizioni
-                                      restano in italiano su tutte le lingue)
+Traduce SOLO le descrizioni dei piatti in EN/DE/ES/FR via DeepL, con cache.
+
+Env: AIRTABLE_TOKEN, AIRTABLE_BASE_ID (obbligatorie), DEEPL_API_KEY (opzionale).
 """
 
-import os, sys, json
+import os, sys, json, re, unicodedata
 import urllib.request, urllib.parse, urllib.error
 
-TABLE = "Piatti"
 CACHE_FILE = "translations_cache.json"
-
-# lingue di destinazione -> codice DeepL
 TARGETS = {"en": "EN-GB", "de": "DE", "es": "ES", "fr": "FR"}
 
-# ordine + id + sottotitolo (IT) delle categorie — servono come fallback;
-# le traduzioni curate vivono in index.html
-CATEGORY_CONFIG = [
-    ("Antipasti & Sfizi","antipasti","gli inizi che contano"),
-    ("Fritti","fritti","il peccato è servito"),
-    ("Le Pizze — Classiche","classiche","lievitazione 48h"),
-    ("Le Pizze — Gourmet","gourmet","quelle che si danno un tono"),
-    ("Calzoni","calzoni","la pizza che si ripiega su sé stessa"),
-    ("Primi","primi","fatti come si deve"),
-    ("Secondi","secondi","roba seria"),
-    ("Contorni","contorni","mai da soli"),
-    ("Dolci","dolci","fatti in casa"),
-    ("Bevande","bevande","per accompagnare"),
+# mappa nome-categoria -> id stabile (per agganciare le traduzioni curate in index.html)
+NAME2ID = {
+    "Antipasti & Sfizi":"antipasti", "Fritti":"fritti",
+    "Le Pizze — Classiche":"classiche", "Le Pizze — Gourmet":"gourmet",
+    "Calzoni":"calzoni", "Primi":"primi", "Secondi":"secondi",
+    "Contorni":"contorni", "Dolci":"dolci", "Bevande":"bevande",
+}
+
+# fallback categorie (se la tabella "Categorie" non esiste): (nome, sottotitolo, ordine)
+FALLBACK_CATEGORIES = [
+    ("Antipasti & Sfizi","gli inizi che contano",1),
+    ("Fritti","il peccato è servito",2),
+    ("Le Pizze — Classiche","lievitazione 48h",3),
+    ("Le Pizze — Gourmet","quelle che si danno un tono",4),
+    ("Calzoni","la pizza che si ripiega su sé stessa",5),
+    ("Primi","fatti come si deve",6),
+    ("Secondi","roba seria",7),
+    ("Contorni","mai da soli",8),
+    ("Dolci","fatti in casa",9),
+    ("Bevande","per accompagnare",10),
 ]
 
-RESTAURANT = {"name": "Santo Impasto", "coperto": 2}
+# fallback testi sito (se la tabella "Testi sito" non esiste)
+DEFAULT_SITE = {
+    "coperto": "2",
+    "motto": "«Ogni pizza è un piccolo miracolo.\nLa lievitazione fa il resto.»",
+    "frozenLegend": "* prodotto surgelato all'origine o congelato in loco",
+    "footerNote": "Menù allergeni e informazioni sugli ingredienti disponibili su richiesta.",
+    "legendNote": "Menù allergeni completo e informazioni sugli ingredienti disponibili su richiesta. Rif. Reg. UE 1169/2011.",
+}
+# chiave in "Testi sito" -> campo interno di site
+TESTI_MAP = {
+    "coperto":"coperto", "motto":"motto", "nota_surgelati":"frozenLegend",
+    "nota_allergeni":"footerNote", "nota_legenda_allergeni":"legendNote",
+}
+
+LABEL2KEY = {
+    "Glutine":"glutine","Crostacei":"crostacei","Uova":"uova","Pesce":"pesce",
+    "Arachidi":"arachidi","Soia":"soia","Latte":"latte","Frutta a guscio":"frutta",
+    "Sedano":"sedano","Senape":"senape","Sesamo":"sesamo","Solfiti":"solfiti",
+    "Lupini":"lupini","Molluschi":"molluschi",
+}
 
 
 # ---------- Airtable ----------
-def fetch_records(token, base_id):
+def fetch_table(token, base_id, table, required=False):
+    """Ritorna la lista dei record, o None se la tabella non esiste (404)."""
     records, offset = [], None
     while True:
-        url = "https://api.airtable.com/v0/%s/%s?pageSize=100" % (base_id, TABLE)
+        url = "%s/%s?pageSize=100" % (base_id, urllib.parse.quote(table))
+        url = "https://api.airtable.com/v0/" + url
         if offset:
             url += "&offset=" + urllib.parse.quote(offset)
         r = urllib.request.Request(url)
@@ -54,13 +79,15 @@ def fetch_records(token, base_id):
                 data = json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             body = e.read().decode(errors="replace")
-            print("ERRORE Airtable: HTTP %s" % e.code)
+            if e.code in (404,) and not required:
+                return None  # tabella opzionale assente
+            print("ERRORE Airtable su '%s': HTTP %s" % (table, e.code))
             if e.code == 403:
-                print(">> Il token non ha 'data.records:read'. Aggiungilo e riprova.")
+                print(">> Il token non ha 'data.records:read'.")
             elif e.code == 404:
-                print(">> Base/tabella non trovata (base %s, tabella '%s')." % (base_id, TABLE))
+                print(">> Tabella '%s' non trovata." % table)
             elif e.code == 401:
-                print(">> Token non valido/scaduto (secret AIRTABLE_TOKEN).")
+                print(">> Token non valido/scaduto.")
             print("Dettaglio:", body[:300]); sys.exit(1)
         records.extend(data.get("records", []))
         offset = data.get("offset")
@@ -71,106 +98,119 @@ def fetch_records(token, base_id):
 
 # ---------- DeepL ----------
 def deepl_endpoint(key):
-    # le chiavi free finiscono con ":fx"
     return "https://api-free.deepl.com/v2/translate" if key.strip().endswith(":fx") \
            else "https://api.deepl.com/v2/translate"
 
 def deepl_translate(text, target_code, key):
-    data = urllib.parse.urlencode({
-        "text": text, "source_lang": "IT", "target_lang": target_code
-    }).encode()
+    data = urllib.parse.urlencode({"text":text,"source_lang":"IT","target_lang":target_code}).encode()
     r = urllib.request.Request(deepl_endpoint(key), data=data)
     r.add_header("Authorization", "DeepL-Auth-Key " + key)
     with urllib.request.urlopen(r, timeout=30) as resp:
-        out = json.loads(resp.read().decode())
-    return out["translations"][0]["text"]
-
+        return json.loads(resp.read().decode())["translations"][0]["text"]
 
 def load_cache():
     try:
-        with open(CACHE_FILE, encoding="utf-8") as fh:
-            return json.load(fh)
-    except Exception:
-        return {}
+        with open(CACHE_FILE, encoding="utf-8") as fh: return json.load(fh)
+    except Exception: return {}
 
 def save_cache(cache):
-    with open(CACHE_FILE, "w", encoding="utf-8") as fh:
+    with open(CACHE_FILE,"w",encoding="utf-8") as fh:
         json.dump(cache, fh, ensure_ascii=False, indent=1, sort_keys=True)
 
 
-# ---------- Build ----------
-def build(records, deepl_key):
-    rows = [r.get("fields", {}) for r in records if r.get("fields", {}).get("Visibile")]
+# ---------- helpers ----------
+def slugify(name):
+    s = unicodedata.normalize("NFKD", name).encode("ascii","ignore").decode()
+    s = re.sub(r"[^a-zA-Z0-9]+","-", s).strip("-").lower()
+    return s or "cat"
+
+def name_to_id(name):
+    return NAME2ID.get(name.strip(), slugify(name))
+
+def truthy(v):
+    return v is True or (isinstance(v,str) and v.strip().lower() in ("true","1","si","sì","x","yes"))
+
+
+# ---------- build ----------
+def build(piatti, categorie, testi, deepl_key):
+    # --- site texts ---
+    site = dict(DEFAULT_SITE)
+    if testi:
+        for rec in testi:
+            f = rec.get("fields", {})
+            k = (f.get("Chiave") or "").strip()
+            if k in TESTI_MAP and (f.get("Testo") not in (None, "")):
+                site[TESTI_MAP[k]] = f.get("Testo")
+
+    # --- categorie ordinate (da tabella o fallback) ---
+    if categorie:
+        cats = []
+        for rec in categorie:
+            f = rec.get("fields", {})
+            nome = (f.get("Nome") or "").strip()
+            if not nome or not truthy(f.get("Visibile")):
+                continue
+            cats.append((nome, (f.get("Sottotitolo") or "").strip(),
+                         f.get("Ordine") if f.get("Ordine") is not None else 1e9))
+        cats.sort(key=lambda c: c[2])
+    else:
+        cats = [(n, s, o) for (n, s, o) in FALLBACK_CATEGORIES]
+
+    # --- piatti visibili ordinati ---
+    rows = [r.get("fields", {}) for r in piatti if truthy(r.get("fields", {}).get("Visibile"))]
     rows.sort(key=lambda f: (f.get("Ordine") is None, f.get("Ordine", 1e9)))
 
+    # --- traduzione descrizioni ---
     cache = load_cache()
-    for lang in TARGETS:
-        cache.setdefault(lang, {})
-    calls = [0]
-    warned = {"no_key": False, "err": False}
-
+    for lang in TARGETS: cache.setdefault(lang, {})
+    calls = [0]; warned = {"no_key": False, "err": False}
     def tr_desc(desc_it):
         out = {"it": desc_it}
         for lang, code in TARGETS.items():
-            if not desc_it:
-                out[lang] = ""
-                continue
-            if desc_it in cache[lang]:
-                out[lang] = cache[lang][desc_it]
-                continue
-            if not deepl_key:
-                out[lang] = desc_it           # fallback: resta in IT
-                warned["no_key"] = True
-                continue
+            if not desc_it: out[lang] = ""; continue
+            if desc_it in cache[lang]: out[lang] = cache[lang][desc_it]; continue
+            if not deepl_key: out[lang] = desc_it; warned["no_key"] = True; continue
             try:
-                t = deepl_translate(desc_it, code, deepl_key)
-                calls[0] += 1
-                cache[lang][desc_it] = t
-                out[lang] = t
+                t = deepl_translate(desc_it, code, deepl_key); calls[0]+=1
+                cache[lang][desc_it] = t; out[lang] = t
             except Exception as e:
-                out[lang] = desc_it           # fallback in caso di errore
-                if not warned["err"]:
-                    print("Avviso DeepL:", str(e)[:160]); warned["err"] = True
+                out[lang] = desc_it
+                if not warned["err"]: print("Avviso DeepL:", str(e)[:160]); warned["err"]=True
         return out
 
+    # --- sezioni ---
     sections = []
-    for label, sec_id, subtitle in CATEGORY_CONFIG:
+    for nome, subtitle, _ in cats:
         items = []
         for f in rows:
-            if (f.get("Categoria") or "").strip() != label:
+            if (f.get("Categoria") or "").strip() != nome:
                 continue
-            keys = []
-            for a in (f.get("Allergeni") or []):
-                # mappa etichetta -> chiave (minuscolo, "Frutta a guscio" -> "frutta")
-                k = {"Glutine":"glutine","Crostacei":"crostacei","Uova":"uova","Pesce":"pesce",
-                     "Arachidi":"arachidi","Soia":"soia","Latte":"latte","Frutta a guscio":"frutta",
-                     "Sedano":"sedano","Senape":"senape","Sesamo":"sesamo","Solfiti":"solfiti",
-                     "Lupini":"lupini","Molluschi":"molluschi"}.get(a)
-                if k:
-                    keys.append(k)
+            keys = [LABEL2KEY[a] for a in (f.get("Allergeni") or []) if a in LABEL2KEY]
             item = {
                 "name": (f.get("Nome") or "").strip(),
                 "price": (f.get("Prezzo") or "").strip(),
                 "keys": keys,
                 "desc": tr_desc((f.get("Descrizione") or "").strip()),
             }
-            if f.get("Surgelato"):
-                item["frozen"] = True
+            if truthy(f.get("Surgelato")): item["frozen"] = True
             items.append(item)
         if items:
-            sections.append({"id": sec_id, "title": label, "subtitle": subtitle, "items": items})
+            sections.append({"id": name_to_id(nome), "title": nome,
+                             "subtitle": subtitle, "items": items})
 
     save_cache(cache)
     if warned["no_key"]:
         print("Nota: DEEPL_API_KEY assente -> descrizioni lasciate in italiano.")
     print("Traduzioni nuove richieste a DeepL:", calls[0])
-    return {"restaurant": RESTAURANT, "sections": sections}
+    print("Categorie:", "da Airtable" if categorie else "fallback (codice)",
+          "| Testi sito:", "da Airtable" if testi else "fallback (codice)")
+    return {"site": site, "sections": sections}
 
 
 def render_js(data):
     payload = json.dumps(data, ensure_ascii=False, indent=2)
     return ("/* GENERATO AUTOMATICAMENTE DA build_site.py — non modificare a mano.\n"
-            "   Fonte dati: Airtable (tabella 'Piatti'). Descrizioni: DeepL. */\n"
+            "   Fonte: Airtable (Piatti + Categorie + Testi sito). Descrizioni: DeepL. */\n"
             "window.MENU_DATA = " + payload + ";\n")
 
 
@@ -178,15 +218,16 @@ def main():
     token = os.environ.get("AIRTABLE_TOKEN")
     base_id = os.environ.get("AIRTABLE_BASE_ID")
     deepl_key = os.environ.get("DEEPL_API_KEY", "").strip()
-    if not token:
-        print("ERRORE: manca il secret AIRTABLE_TOKEN."); sys.exit(1)
-    if not base_id:
-        print("ERRORE: manca AIRTABLE_BASE_ID nel workflow."); sys.exit(1)
+    if not token: print("ERRORE: manca il secret AIRTABLE_TOKEN."); sys.exit(1)
+    if not base_id: print("ERRORE: manca AIRTABLE_BASE_ID nel workflow."); sys.exit(1)
 
-    recs = fetch_records(token, base_id)
-    data = build(recs, deepl_key)
+    piatti = fetch_table(token, base_id, "Piatti", required=True)
+    categorie = fetch_table(token, base_id, "Categorie")     # None se assente
+    testi = fetch_table(token, base_id, "Testi sito")        # None se assente
+
+    data = build(piatti, categorie, testi, deepl_key)
     n = sum(len(s["items"]) for s in data["sections"])
-    with open("data.js", "w", encoding="utf-8") as fh:
+    with open("data.js","w",encoding="utf-8") as fh:
         fh.write(render_js(data))
     print("data.js rigenerato: %d sezioni, %d piatti visibili." % (len(data["sections"]), n))
 

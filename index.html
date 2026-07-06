@@ -190,8 +190,12 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function t(obj){ if(obj==null) return ""; if(typeof obj==="string") return obj; return obj[state.lang]!=null?obj[state.lang]:(obj.it!=null?obj.it:""); }
   function ui(k){ return (UI[state.lang]||UI.it)[k]; }
-  function catTitle(sec){ return CAT[sec.id]?t(CAT[sec.id].title):(sec.title||sec.id); }
-  function catSub(sec){ return CAT[sec.id]?t(CAT[sec.id].sub):(sec.subtitle||""); }
+  function siteTxt(key){ return (D.site && D.site[key]!=null && D.site[key]!=="") ? D.site[key] : null; }
+  function mottoText(){ if(state.lang==='it'){ var m=siteTxt('motto'); if(m) return m; } return t(MOTTO); }
+  // titolo/sottotitolo categoria: in IT prevale il testo modificabile da Airtable;
+  // nelle altre lingue si usano le traduzioni curate (riserva nel codice).
+  function catTitle(sec){ if(state.lang==='it') return sec.title||(CAT[sec.id]?CAT[sec.id].title.it:sec.id); return CAT[sec.id]?t(CAT[sec.id].title):(sec.title||sec.id); }
+  function catSub(sec){ if(state.lang==='it') return (sec.subtitle!=null?sec.subtitle:(CAT[sec.id]?CAT[sec.id].sub.it:"")); return CAT[sec.id]?t(CAT[sec.id].sub):(sec.subtitle||""); }
   function tabLabel(sec){ var s=catTitle(sec); var i=s.indexOf("— "); return i>=0?s.slice(i+2):s; }
   function allName(k){ return ALL[k]?t(ALL[k].name):k; }
   function allCode(k){ return ALL[k]?ALL[k].code:"?"; }
@@ -218,14 +222,14 @@
     closeSheet(); paintLang(); applyStatic(); buildTabs(); render();
   }
 
-  // ---- static texts (header/footer/search/fab) ----
+  // ---- static texts (header/footer/fab) ----
   function applyStatic(){
-    document.getElementById('motto').innerHTML=esc(t(MOTTO)).replace(/\n/g,'<br>');
+    document.getElementById('motto').innerHTML=esc(mottoText()).replace(/\n/g,'<br>');
     document.getElementById('fablabel').textContent=ui('allergens');
-    var coperto=(D.restaurant&&D.restaurant.coperto!=null)?D.restaurant.coperto:2;
+    var coperto=siteTxt('coperto')||((D.restaurant&&D.restaurant.coperto!=null)?D.restaurant.coperto:2);
     document.getElementById('f-coperto').textContent=ui('coperto').replace('%s',String(coperto).replace('.',','));
-    document.getElementById('f-frozen').textContent=ui('frozenLegend');
-    document.getElementById('f-note').textContent=ui('note');
+    document.getElementById('f-frozen').textContent=(state.lang==='it'&&siteTxt('frozenLegend'))?siteTxt('frozenLegend'):ui('frozenLegend');
+    document.getElementById('f-note').textContent=(state.lang==='it'&&siteTxt('footerNote'))?siteTxt('footerNote'):ui('note');
   }
 
   // ---- tabs ----
@@ -328,7 +332,8 @@
       +'<h3>'+esc(ui('legendTitle'))+'</h3><p>'+esc(ui('legendSub'))+'</p></div><button class="closebtn">×</button></div>';
     var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:8px;">';
     ORDER.forEach(function(k){ body+='<div class="arow"><span class="acode">'+esc(allCode(k))+'</span><span class="aname">'+esc(allName(k))+'</span></div>'; });
-    body+='</div><p class="sheetnote">'+esc(ui('legendNote'))+'</p>';
+    var ln=(state.lang==='it'&&siteTxt('legendNote'))?siteTxt('legendNote'):ui('legendNote');
+    body+='</div><p class="sheetnote">'+esc(ln)+'</p>';
     buildSheet(head+body);
   }
   function openLangInfo(){
