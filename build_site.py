@@ -65,11 +65,14 @@ LABEL2KEY = {
 
 # ---------- Airtable ----------
 def fetch_table(token, base_id, table, required=False):
-    """Ritorna la lista dei record, o None se la tabella non esiste (404)."""
+    """Ritorna la lista dei record, o None se la tabella opzionale non esiste.
+    Airtable segnala una tabella mancante in modi diversi (404, oppure 403
+    'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND'). Dato che 'Piatti' (required)
+    viene letta per prima con successo, i permessi sono a posto: quindi per
+    le tabelle opzionali un 403/404/422 significa 'tabella assente'."""
     records, offset = [], None
     while True:
-        url = "%s/%s?pageSize=100" % (base_id, urllib.parse.quote(table))
-        url = "https://api.airtable.com/v0/" + url
+        url = "https://api.airtable.com/v0/%s/%s?pageSize=100" % (base_id, urllib.parse.quote(table))
         if offset:
             url += "&offset=" + urllib.parse.quote(offset)
         r = urllib.request.Request(url)
@@ -79,8 +82,9 @@ def fetch_table(token, base_id, table, required=False):
                 data = json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             body = e.read().decode(errors="replace")
-            if e.code in (404,) and not required:
-                return None  # tabella opzionale assente
+            if not required and e.code in (400, 403, 404, 422):
+                print("Tabella opzionale '%s' assente (HTTP %s): uso i valori di default." % (table, e.code))
+                return None
             print("ERRORE Airtable su '%s': HTTP %s" % (table, e.code))
             if e.code == 403:
                 print(">> Il token non ha 'data.records:read'.")
